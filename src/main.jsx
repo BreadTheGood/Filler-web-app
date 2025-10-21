@@ -1,65 +1,186 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 
-// --- CONFIGURACIÓN ---
-// URL del formulario de tu *empresa* (terminado en formResponse)
-const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSf5_ZjtTrdPwn7RTLvQdmyaEjqkuuC26ApDcN9j-MA-4W51Jg/formResponse';
-// IDs de todos tus campos
-const ID_FECHA = 'entry.322884199';
-const ID_SERVICIO = 'entry.1138872800';
-const ID_LIDER = 'entry.1049550588';
-const ID_REPRESENTANTE = 'entry.118987505';
-const ID_PRODUCTO = 'entry.1101921189';
-const ID_DNI = 'entry.975512048';
-const ID_GESTION = 'entry.982208339';
-const ID_CASO_YOIZEN = 'entry.655622226';
-const ID_FLOW_SIN_DECO = 'entry.1786619160';
-const ID_UNIFICACION = 'entry.1796590257';
-const ID_PROVINCIA = 'entry.262024519';
-const ID_PROMO_TACTICA = 'entry.2143876304';
-// --- FIN DE CONFIGURACIÓN ---
+// --- 1. HOOK PARA LEER/ESCRIBIR EN LOCALSTORAGE ---
+// (Esto guarda tu configuración en el navegador)
+function useLocalStorage(key, initialValue) {
+  const [storedValue, setStoredValue] = useState(() => {
+    try {
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch (error) {
+      console.error(error);
+      return initialValue;
+    }
+  });
 
-// --- Opciones para Dropdowns ---
-const flowSinDecoOptions = [
-  'Se activa en Línea',
-  'No se activa - Problema de herramientas',
-  'No se activa - Cte no acepta activarlo en el caso',
-  'N/A',
-];
+  const setValue = (value) => {
+    try {
+      const valueToStore = value instanceof Function ? value(storedValue) : value;
+      setStoredValue(valueToStore);
+      window.localStorage.setItem(key, JSON.stringify(valueToStore));
+    } catch (error) {
+      console.error(error);
+    }
+  };
+  return [storedValue, setValue];
+}
 
-// --- Plantilla para Fila Nueva ---
-// Helper para obtener la fecha de hoy en formato YYYY-MM-DD
-const getTodayString = () => {
-  const today = new Date();
-  const y = today.getFullYear();
-  const m = String(today.getMonth() + 1).padStart(2, '0'); // Meses son 0-based
-  const d = String(today.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+
+// --- 2. CONFIGURACIÓN INICIAL ---
+// (Usa esta si no hay nada guardado en el navegador)
+const DEFAULT_CONFIG = {
+  formUrl: 'https://docs.google.com/forms/d/e/1FAIpQLSf5_ZjtTrdPwn7RTLvQdmyaEjqkuuC26ApDcN9j-MA-4W51Jg/formResponse',
+  entries: {
+    fecha: 'entry.322884199',
+    servicio: 'entry.1138872800',
+    lider: 'entry.1049550588',
+    representante: 'entry.118987505',
+    producto: 'entry.1101921189',
+    dni: 'entry.975512048',
+    gestion: 'entry.982208339',
+    caso_yoizen: 'entry.655622226',
+    flow_sin_deco: 'entry.1786619160',
+    unificacion: 'entry.1796590257',
+    provincia: 'entry.262024519',
+    promo_tactica: 'entry.2143876304',
+  }
 };
 
-const newRowTemplate = {
-  id: Date.now(),
-  fecha: getTodayString(), // Campo de fecha único con valor de hoy
-  servicio: 'HOGAR', // Fijo
-  lider: 'AYLEN GONZALEZ', // Fijo
-  representante: 'MARTINEZ PEINADO SAMUEL SALVADOR', // Editable
-  producto: '',
-  dni: '',
-  gestion: '',
-  caso_yoizen: '',
-  flow_sin_deco: flowSinDecoOptions[0], // Dropdown, default a la primera opción
-  unificacion: 'No Corresponde (no tiene serv. Para unificar)', // Editable
-  provincia: 'OTRA', // Fijo
-  promo_tactica: 'NO', // Fijo
-};
 
+// --- 3. COMPONENTE PRINCIPAL (ENRUTADOR) ---
 function App() {
+  // Carga la config desde localStorage o usa la default
+  const [config, setConfig] = useLocalStorage('fillerAppConfig', DEFAULT_CONFIG);
+  const [showConfig, setShowConfig] = useState(false);
+
+  if (showConfig) {
+    // Si showConfig es true, muestra la pantalla de configuración
+    return <ConfigurationScreen
+      config={config}
+      onSave={(newConfig) => {
+        setConfig(newConfig); // Guarda la nueva config
+        setShowConfig(false); // Vuelve a la tabla
+      }}
+      onCancel={() => setShowConfig(false)} // Vuelve a la tabla
+    />;
+  }
+
+  // Por defecto, muestra la tabla de datos
+  return <SheetTable
+    config={config} // Pasa la config actual a la tabla
+    onShowConfig={() => setShowConfig(true)} // Pasa la función para mostrar la config
+  />;
+}
+
+
+// --- 4. NUEVO COMPONENTE: PANTALLA DE CONFIGURACIÓN ---
+function ConfigurationScreen({ config, onSave, onCancel }) {
+  // Copia local de la config para editarla
+  const [localConfig, setLocalConfig] = useState(config);
+
+  const handleSave = (e) => {
+    e.preventDefault();
+    onSave(localConfig);
+  };
+
+  // Handler para cambiar la Form URL
+  const handleUrlChange = (e) => {
+    setLocalConfig(prev => ({ ...prev, formUrl: e.target.value }));
+  };
+
+  // Handler para cambiar los Entry IDs (que están anidados)
+  const handleEntryChange = (fieldName, value) => {
+    setLocalConfig(prev => ({
+      ...prev,
+      entries: {
+        ...prev.entries,
+        [fieldName]: value
+      }
+    }));
+  };
+
+  return (
+    <div className="config-screen">
+      <h2>Configuración</h2>
+      <form onSubmit={handleSave}>
+        <div className="config-field">
+          <label>URL del Formulario (`formResponse`)</label>
+          <input
+            type="text"
+            value={localConfig.formUrl}
+            onChange={handleUrlChange}
+          />
+        </div>
+
+        <h3>Entry IDs de los Campos</h3>
+        {/* Genera un input por cada entry en la config */}
+        {Object.keys(localConfig.entries).map(key => (
+          <div className="config-field" key={key}>
+            <label>Entry ID para: {key.toUpperCase()}</label>
+            <input
+              type="text"
+              value={localConfig.entries[key]}
+              onChange={(e) => handleEntryChange(key, e.target.value)}
+            />
+          </div>
+        ))}
+        
+        <div className="config-actions">
+          <button type="submit">Guardar</button>
+          <button type="button" onClick={onCancel}>Cancelar</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+
+// --- 5. COMPONENTE DE TABLA (TU CÓDIGO ANTERIOR, ADAPTADO) ---
+// Recibe 'config' y 'onShowConfig' como props
+function SheetTable({ config, onShowConfig }) {
+  // (Todo el estado y lógica de la tabla se queda aquí)
+  
+  // Opciones para Dropdowns (sin cambios)
+  const flowSinDecoOptions = [
+    'Se activa en Línea',
+    'No se activa - Problema de herramientas',
+    'No se activa - Cte no acepta activarlo en el caso',
+    'N/A',
+  ];
+
+  // Plantilla para Fila Nueva (sin cambios)
+  const getTodayString = () => {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const newRowTemplate = {
+    id: Date.now(),
+    fecha: getTodayString(),
+    servicio: 'HOGAR',
+    lider: 'AYLEN GONZALEZ',
+    representante: 'MARTINEZ PEINADO SAMUEL SALVADOR',
+    producto: '',
+    dni: '',
+    gestion: '',
+    caso_yoizen: '',
+    flow_sin_deco: flowSinDecoOptions[0],
+    unificacion: 'No Corresponde (no tiene serv. Para unificar)',
+    provincia: 'OTRA',
+    promo_tactica: 'NO',
+  };
+
+  // Estado de la tabla (sin cambios)
   const [rows, setRows] = useState([newRowTemplate]);
   const [status, setStatus] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showHiddenColumns, setShowHiddenColumns] = useState(false);
 
-  // --- Funciones de la Tabla ---
-
+  // Funciones de la Tabla (sin cambios)
   const handleInputChange = (index, fieldName, value) => {
     const newRows = rows.map((row, i) => {
       if (i === index) {
@@ -69,19 +190,18 @@ function App() {
     });
     setRows(newRows);
   };
-
   const addRow = () => {
     setRows([...rows, { ...newRowTemplate, id: Date.now() }]);
   };
-
   const removeRow = (index) => {
-    if (rows.length <= 1) return; 
+    if (rows.length <= 1) return;
     const newRows = rows.filter((_, i) => i !== index);
     setRows(newRows);
   };
 
-  // --- Lógica de Envío ---
-
+  // --- LÓGICA DE ENVÍO (MODIFICADA) ---
+  // Ahora lee 'config.formUrl' y 'config.entries'
+  
   const submitRowToGoogle = (formData) => {
     return new Promise((resolve, reject) => {
       try {
@@ -92,7 +212,7 @@ function App() {
         document.body.appendChild(iframe);
 
         const form = document.createElement('form');
-        form.action = FORM_URL;
+        form.action = config.formUrl; // <-- USA LA CONFIG
         form.method = 'POST';
         form.target = iframeName;
         form.style.display = 'none';
@@ -112,7 +232,7 @@ function App() {
           document.body.removeChild(form);
           document.body.removeChild(iframe);
           resolve();
-        }, 800); 
+        }, 800);
 
       } catch (error) {
         reject(error);
@@ -128,34 +248,33 @@ function App() {
     let submittedCount = 0;
     let failedRows = [];
 
+    // Lee los Entry IDs desde el objeto 'config'
+    const { entries } = config; 
+
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      
-      // 1. Validar (solo revisamos que la fecha no esté vacía)
       if (!row.fecha) {
         failedRows.push(i + 1);
         continue;
       }
-      
       setStatus(`⏳ Enviando fila ${i + 1} de ${rows.length}...`);
-
-      // 2. Preparar el FormData
+      
       const rowFormData = new FormData();
       
-      rowFormData.append(ID_FECHA, row.fecha); // Envía la fecha formateada
-      rowFormData.append(ID_SERVICIO, row.servicio);
-      rowFormData.append(ID_LIDER, row.lider);
-      rowFormData.append(ID_REPRESENTANTE, row.representante);
-      rowFormData.append(ID_PRODUCTO, row.producto);
-      rowFormData.append(ID_DNI, row.dni);
-      rowFormData.append(ID_GESTION, row.gestion);
-      rowFormData.append(ID_CASO_YOIZEN, row.caso_yoizen);
-      rowFormData.append(ID_FLOW_SIN_DECO, row.flow_sin_deco);
-      rowFormData.append(ID_UNIFICACION, row.unificacion);
-      rowFormData.append(ID_PROVINCIA, row.provincia);
-      rowFormData.append(ID_PROMO_TACTICA, row.promo_tactica);
+      // Añade campos usando los IDs de la config
+      rowFormData.append(entries.fecha, row.fecha);
+      rowFormData.append(entries.servicio, row.servicio);
+      rowFormData.append(entries.lider, row.lider);
+      rowFormData.append(entries.representante, row.representante);
+      rowFormData.append(entries.producto, row.producto);
+      rowFormData.append(entries.dni, row.dni);
+      rowFormData.append(entries.gestion, row.gestion);
+      rowFormData.append(entries.caso_yoizen, row.caso_yoizen);
+      rowFormData.append(entries.flow_sin_deco, row.flow_sin_deco);
+      rowFormData.append(entries.unificacion, row.unificacion);
+      rowFormData.append(entries.provincia, row.provincia);
+      rowFormData.append(entries.promo_tactica, row.promo_tactica);
       
-      // 3. Enviar y esperar
       try {
         await submitRowToGoogle(rowFormData);
         submittedCount++;
@@ -165,45 +284,57 @@ function App() {
       }
     }
 
-    // 4. Reporte final
     let finalMessage = `✅ Envío completado. ${submittedCount} filas enviadas.`;
     if (failedRows.length > 0) {
       finalMessage += ` ❌ Error en filas (datos inválidos): ${failedRows.join(', ')}.`;
     }
-    
     setStatus(finalMessage);
     setIsSubmitting(false);
   };
 
+  // --- JSX de la Tabla (MODIFICADO) ---
   return (
     <div>
-      <h2>FillerV2</h2>
+      {/* Botón de Configuración añadido en la esquina */}
+      <button onClick={onShowConfig} className="config-button">
+        ⚙️
+      </button>
+
+      <h2>Filler V2</h2>
       <form onSubmit={handleSubmitAll}>
         <div style={{ overflowX: 'auto', width: '100%' }}>
           <table className="sheet-table">
+            {/* ... Tu <thead> (sin cambios) ... */}
             <thead>
               <tr>
                 <th>FECHA</th>
-                <th>SERVICIO</th>
-                <th>LIDER</th>
+                {showHiddenColumns && (
+                  <>
+                    <th>SERVICIO</th>
+                    <th>LIDER</th>
+                  </>
+                )}
                 <th>REPRESENTANTE (A-Z)</th>
                 <th>PRODUCTO</th>
                 <th>NUMERO DE DNI</th>
                 <th>NUMERO DE GESTION</th>
                 <th>NUMERO DE CASO YOIZEN</th>
                 <th>FLOW SIN DECO</th>
-                <th>UNIFICACION DE FACTURA</th>
-                <th>Provincia y localidad</th>
-                <th>¿NUEVAS promos tácticas?</th>
+                {showHiddenColumns && (
+                  <>
+                    <th>UNIFICACION DE FACTURA</th>
+                    <th>Provincia y localidad</th>
+                    <th>¿NUEVAS promos tácticas?</th>
+                  </>
+                )}
                 <th>Acción</th>
               </tr>
             </thead>
+            
+            {/* ... Tu <tbody> (sin cambios) ... */}
             <tbody>
               {rows.map((row, index) => (
                 <tr key={row.id}>
-                  {/* --- CAMBIOS DE ESTA VERSIÓN --- */}
-                  
-                  {/* 1. Input de Fecha Único */}
                   <td>
                     <input
                       type="date"
@@ -212,28 +343,16 @@ function App() {
                       required
                     />
                   </td>
-                  
-                  {/* 2. Campo Fijo */}
-                  <td>
-                    <input
-                      type="text"
-                      value={row.servicio}
-                      disabled
-                      style={{ backgroundColor: '#eee' }} // Estilo visual para campo fijo
-                    />
-                  </td>
-                  
-                  {/* 3. Campo Fijo */}
-                  <td>
-                    <input
-                      type="text"
-                      value={row.lider}
-                      disabled
-                      style={{ backgroundColor: '#eee' }}
-                    />
-                  </td>
-                  
-                  {/* 4. Campo Pre-llenado (Editable) */}
+                  {showHiddenColumns && (
+                    <>
+                      <td>
+                        <input type="text" value={row.servicio} disabled />
+                      </td>
+                      <td>
+                        <input type="text" value={row.lider} disabled />
+                      </td>
+                    </>
+                  )}
                   <td>
                     <input
                       type="text"
@@ -242,8 +361,6 @@ function App() {
                       required
                     />
                   </td>
-                  
-                  {/* --- Campos sin cambios --- */}
                   <td>
                     <input
                       type="text"
@@ -276,10 +393,6 @@ function App() {
                       required
                     />
                   </td>
-                  
-                  {/* --- CAMBIOS DE ESTA VERSIÓN --- */}
-
-                  {/* 5. Dropdown (Select) */}
                   <td>
                     <select
                       value={row.flow_sin_deco}
@@ -290,38 +403,24 @@ function App() {
                       ))}
                     </select>
                   </td>
-                  
-                  {/* 6. Campo Pre-llenado (Editable) */}
-                  <td>
-                    <input
-                      type="text"
-                      value={row.unificacion}
-                      onChange={(e) => handleInputChange(index, 'unificacion', e.target.value)}
-                      required
-                    />
-                  </td>
-                  
-                  {/* 7. Campo Fijo */}
-                  <td>
-                    <input
-                      type="text"
-                      value={row.provincia}
-                      disabled
-                      style={{ backgroundColor: '#eee' }}
-                    />
-                  </td>
-                  
-                  {/* 8. Campo Fijo */}
-                  <td>
-                    <input
-                      type="text"
-                      value={row.promo_tactica}
-                      disabled
-                      style={{ backgroundColor: '#eee' }}
-                    />
-                  </td>
-                  
-                  {/* --- Botón sin cambios --- */}
+                  {showHiddenColumns && (
+                    <>
+                      <td>
+                        <input
+                          type="text"
+                          value={row.unificacion}
+                          onChange={(e) => handleInputChange(index, 'unificacion', e.target.value)}
+                          required
+                        />
+                      </td>
+                      <td>
+                        <input type="text" value={row.provincia} disabled />
+                      </td>
+                      <td>
+                        <input type="text" value={row.promo_tactica} disabled />
+                      </td>
+                    </>
+                  )}
                   <td>
                     <button type="button" onClick={() => removeRow(index)} disabled={rows.length <= 1}>
                       &times;
@@ -333,10 +432,23 @@ function App() {
           </table>
         </div>
         
+        {/* ... Tus table-actions (sin cambios) ... */}
         <div className="table-actions">
-          <button type="button" onClick={addRow}>
-            + Añadir Fila
-          </button>
+          <div>
+            <button 
+              type="button" 
+              onClick={addRow} 
+              style={{ marginRight: '10px' }}
+            >
+              + Añadir Fila
+            </button>
+            <button 
+              type="button" 
+              onClick={() => setShowHiddenColumns(!showHiddenColumns)}
+            >
+              {showHiddenColumns ? 'Ocultar Opciones' : 'Mostrar Opciones'}
+            </button>
+          </div>
           <button type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Enviando...' : `Enviar ${rows.length} Filas`}
           </button>
@@ -347,5 +459,7 @@ function App() {
   );
 }
 
+
+// --- 6. RENDER (Sin cambios) ---
 const root = createRoot(document.getElementById('root'));
 root.render(<App />);
