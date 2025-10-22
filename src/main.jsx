@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 
 // --- 1. HOOK PARA LEER/ESCRIBIR EN LOCALSTORAGE ---
-// (Esto guarda tu configuración en el navegador)
 function useLocalStorage(key, initialValue) {
   const [storedValue, setStoredValue] = useState(() => {
     try {
@@ -27,69 +26,100 @@ function useLocalStorage(key, initialValue) {
 }
 
 
-// --- 2. CONFIGURACIÓN INICIAL ---
-// (Usa esta si no hay nada guardado en el navegador)
-const DEFAULT_CONFIG = {
-  formUrl: 'https://docs.google.com/forms/d/e/1FAIpQLSf5_ZjtTrdPwn7RTLvQdmyaEjqkuuC26ApDcN9j-MA-4W51Jg/formResponse',
+// --- 2. CONFIGURACIÓN DE PRUEBA ---
+const TEST_CONFIG = {
+  formUrl: 'https://docs.google.com/forms/d/e/1FAIpQLSfMOZTUzWMdfyeYhSeE5F4AuoQV6hs8luslEzCGnfFyCh6jcA/formResponse',
   entries: {
-    fecha: 'entry.322884199',
-    servicio: 'entry.1138872800',
-    lider: 'entry.1049550588',
-    representante: 'entry.118987505',
-    producto: 'entry.1101921189',
-    dni: 'entry.975512048',
-    gestion: 'entry.982208339',
-    caso_yoizen: 'entry.655622226',
-    flow_sin_deco: 'entry.1786619160',
-    unificacion: 'entry.1796590257',
-    provincia: 'entry.262024519',
-    promo_tactica: 'entry.2143876304',
+    fecha: 'entry.101913523',
+    servicio: 'entry.1544604602',
+    lider: 'entry.48171834',
+    representante: 'entry.614923459',
+    producto: 'entry.267393900',
+    dni: 'entry.1223153849',
+    gestion: 'entry.2044585376',
+    caso_yoizen: 'entry.1258293142',
+    flow_sin_deco: 'entry.1541832960',
+    unificacion: 'entry.423471570',
+    provincia: 'entry.49049516',
+    promo_tactica: 'entry.862315059',
+  }
+};
+
+// --- 3. CONFIGURACIÓN POR DEFECTO (REAL) ---
+const DEFAULT_CONFIG = {
+  formUrl: 'https://docs.google.com/forms/d/e/1FAIpQLSeytdXFZj8LWi72s4rQU4OE_QqTNV3sNmRkJyJjZU3YBFd3xQ/formResponse',
+  entries: {
+    fecha: 'entry.1781500597',
+    servicio: 'entry.2103711837',
+    lider: 'entry.1640447617',
+    representante: 'entry.297979220',
+    producto: 'entry.1078004677',
+    dni: 'entry.2091996480',
+    gestion: 'entry.1531477507',
+    caso_yoizen: 'entry.624182876',
+    flow_sin_deco: 'entry.1368250571',
+    unificacion: 'entry.538026869',
+    provincia: 'entry.2040870261',
+    promo_tactica: 'entry.85694086',
   }
 };
 
 
-// --- 3. COMPONENTE PRINCIPAL (ENRUTADOR) ---
+// --- 4. COMPONENTE PRINCIPAL (ENRUTADOR) ---
 function App() {
-  // Carga la config desde localStorage o usa la default
   const [config, setConfig] = useLocalStorage('fillerAppConfig', DEFAULT_CONFIG);
+  // --- ¡NUEVO ESTADO DE DEPURACIÓN! ---
+  const [isDebugMode, setIsDebugMode] = useLocalStorage('fillerAppDebugMode', false);
+  
   const [showConfig, setShowConfig] = useState(false);
 
   if (showConfig) {
-    // Si showConfig es true, muestra la pantalla de configuración
     return <ConfigurationScreen
-      config={config}
+      config={config} 
+      testConfig={TEST_CONFIG} 
+      defaultConfig={DEFAULT_CONFIG} 
+      // Pasamos el estado de depuración y su setter
+      isDebugMode={isDebugMode}
+      setIsDebugMode={setIsDebugMode}
       onSave={(newConfig) => {
-        setConfig(newConfig); // Guarda la nueva config
-        setShowConfig(false); // Vuelve a la tabla
+        setConfig(newConfig);
+        setShowConfig(false);
       }}
-      onCancel={() => setShowConfig(false)} // Vuelve a la tabla
+      onCancel={() => setShowConfig(false)}
     />;
   }
 
-  // Por defecto, muestra la tabla de datos
   return <SheetTable
-    config={config} // Pasa la config actual a la tabla
-    onShowConfig={() => setShowConfig(true)} // Pasa la función para mostrar la config
+    config={config}
+    isDebugMode={isDebugMode} // Pasamos el estado de depuración a la tabla
+    onShowConfig={() => setShowConfig(true)}
   />;
 }
 
 
-// --- 4. NUEVO COMPONENTE: PANTALLA DE CONFIGURACIÓN ---
-function ConfigurationScreen({ config, onSave, onCancel }) {
-  // Copia local de la config para editarla
+// --- 5. COMPONENTE: PANTALLA DE CONFIGURACIÓN (MODIFICADO) ---
+function ConfigurationScreen({ 
+  config, 
+  testConfig, 
+  defaultConfig, 
+  isDebugMode, // Recibimos el estado
+  setIsDebugMode, // Recibimos el setter
+  onSave, 
+  onCancel 
+}) {
   const [localConfig, setLocalConfig] = useState(config);
 
   const handleSave = (e) => {
     e.preventDefault();
     onSave(localConfig);
+    // El modo de depuración se guarda instantáneamente, no necesita
+    // formar parte del botón "Guardar" de la config.
   };
 
-  // Handler para cambiar la Form URL
   const handleUrlChange = (e) => {
     setLocalConfig(prev => ({ ...prev, formUrl: e.target.value }));
   };
 
-  // Handler para cambiar los Entry IDs (que están anidados)
   const handleEntryChange = (fieldName, value) => {
     setLocalConfig(prev => ({
       ...prev,
@@ -98,6 +128,20 @@ function ConfigurationScreen({ config, onSave, onCancel }) {
         [fieldName]: value
       }
     }));
+  };
+  
+  const handleLoadTestValues = () => {
+    setLocalConfig(testConfig);
+  };
+
+  const handleLoadDefaultValues = () => {
+    setLocalConfig(defaultConfig);
+  };
+  
+  // --- ¡NUEVO HANDLER! ---
+  // Este SÍ guarda directamente en localStorage
+  const handleDebugToggle = (e) => {
+    setIsDebugMode(e.target.checked);
   };
 
   return (
@@ -112,9 +156,7 @@ function ConfigurationScreen({ config, onSave, onCancel }) {
             onChange={handleUrlChange}
           />
         </div>
-
         <h3>Entry IDs de los Campos</h3>
-        {/* Genera un input por cada entry en la config */}
         {Object.keys(localConfig.entries).map(key => (
           <div className="config-field" key={key}>
             <label>Entry ID para: {key.toUpperCase()}</label>
@@ -126,9 +168,35 @@ function ConfigurationScreen({ config, onSave, onCancel }) {
           </div>
         ))}
         
+        {/* --- ¡NUEVO CAMPO DE DEPURACIÓN! --- */}
+        <div className="config-toggle">
+          <label>
+            <input 
+              type="checkbox"
+              checked={isDebugMode}
+              onChange={handleDebugToggle}
+            />
+            Activar Modo Depuración (iframe visible y logs)
+          </label>
+        </div>
+        
         <div className="config-actions">
           <button type="submit">Guardar</button>
           <button type="button" onClick={onCancel}>Cancelar</button>
+          <button
+            type="button"
+            className="test-button"
+            onClick={handleLoadTestValues}
+          >
+            Cargar Valores de Prueba
+          </button>
+          <button
+            type="button"
+            className="default-button"
+            onClick={handleLoadDefaultValues}
+          >
+            Cargar Valores Predeterminados
+          </button>
         </div>
       </form>
     </div>
@@ -136,12 +204,9 @@ function ConfigurationScreen({ config, onSave, onCancel }) {
 }
 
 
-// --- 5. COMPONENTE DE TABLA (TU CÓDIGO ANTERIOR, ADAPTADO) ---
-// Recibe 'config' y 'onShowConfig' como props
-function SheetTable({ config, onShowConfig }) {
-  // (Todo el estado y lógica de la tabla se queda aquí)
+// --- 6. COMPONENTE DE TABLA (CON LÓGICA DE DEPURACIÓN) ---
+function SheetTable({ config, isDebugMode, onShowConfig }) {
   
-  // Opciones para Dropdowns (sin cambios)
   const flowSinDecoOptions = [
     'Se activa en Línea',
     'No se activa - Problema de herramientas',
@@ -149,18 +214,13 @@ function SheetTable({ config, onShowConfig }) {
     'N/A',
   ];
 
-  // Plantilla para Fila Nueva (sin cambios)
-  const getTodayString = () => {
-    const today = new Date();
-    const y = today.getFullYear();
-    const m = String(today.getMonth() + 1).padStart(2, '0');
-    const d = String(today.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  };
-
+  // --- PLANTILLA DE FILA ---
+  const today = new Date();
   const newRowTemplate = {
     id: Date.now(),
-    fecha: getTodayString(),
+    year: today.getFullYear(),
+    month: String(today.getMonth() + 1).padStart(2, '0'),
+    day: String(today.getDate()).padStart(2, '0'),
     servicio: 'HOGAR',
     lider: 'AYLEN GONZALEZ',
     representante: 'MARTINEZ PEINADO SAMUEL SALVADOR',
@@ -174,13 +234,11 @@ function SheetTable({ config, onShowConfig }) {
     promo_tactica: 'NO',
   };
 
-  // Estado de la tabla (sin cambios)
   const [rows, setRows] = useState([newRowTemplate]);
   const [status, setStatus] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showHiddenColumns, setShowHiddenColumns] = useState(false);
 
-  // Funciones de la Tabla (sin cambios)
   const handleInputChange = (index, fieldName, value) => {
     const newRows = rows.map((row, i) => {
       if (i === index) {
@@ -194,25 +252,46 @@ function SheetTable({ config, onShowConfig }) {
     setRows([...rows, { ...newRowTemplate, id: Date.now() }]);
   };
   const removeRow = (index) => {
-    if (rows.length <= 1) return;
+    if (rows.length <= 1) return; 
     const newRows = rows.filter((_, i) => i !== index);
     setRows(newRows);
   };
-
-  // --- LÓGICA DE ENVÍO (MODIFICADA) ---
-  // Ahora lee 'config.formUrl' y 'config.entries'
   
+  const isValidDate = (y, m, d) => {
+    if (!y || !m || !d) return false;
+    const date = new Date(y, m - 1, d);
+    return (
+      date.getFullYear() === parseInt(y) &&
+      date.getMonth() === m - 1 &&
+      date.getDate() === parseInt(d)
+    );
+  };
+
+  // --- LÓGICA DE ENVÍO (MODIFICADA CON isDebugMode) ---
   const submitRowToGoogle = (formData) => {
     return new Promise((resolve, reject) => {
+      let iframe; // Definir iframe aquí para que esté en scope
+      let form; // Definir form aquí
       try {
         const iframeName = 'hidden_iframe';
-        const iframe = document.createElement('iframe');
+        iframe = document.createElement('iframe');
         iframe.name = iframeName;
-        iframe.style.display = 'none';
+        
+        // --- LÓGICA DE DEPURACIÓN ---
+        if (isDebugMode) {
+          iframe.style.width = '100%';
+          iframe.style.height = '300px';
+          iframe.style.border = '2px solid red';
+          iframe.style.margin = '20px 0';
+        } else {
+          iframe.style.display = 'none'; // Oculto
+        }
+        // --- FIN LÓGICA DE DEPURACIÓN ---
+
         document.body.appendChild(iframe);
 
-        const form = document.createElement('form');
-        form.action = config.formUrl; // <-- USA LA CONFIG
+        form = document.createElement('form');
+        form.action = config.formUrl;
         form.method = 'POST';
         form.target = iframeName;
         form.style.display = 'none';
@@ -228,32 +307,49 @@ function SheetTable({ config, onShowConfig }) {
         document.body.appendChild(form);
         form.submit();
 
+        // Limpiar después de enviar
         setTimeout(() => {
           document.body.removeChild(form);
-          document.body.removeChild(iframe);
+          // Solo quitar el iframe si NO estamos depurando
+          if (!isDebugMode) {
+            document.body.removeChild(iframe);
+          }
           resolve();
-        }, 800);
+        }, isDebugMode ? 3000 : 800); // 3s para depurar, 0.8s en producción
 
       } catch (error) {
+        // Si hay un error, limpiar también
+        try {
+          if (form) document.body.removeChild(form);
+          if (iframe) document.body.removeChild(iframe);
+        } catch (e) {
+          // Ignorar si ya se borraron
+        }
         reject(error);
       }
     });
   };
 
+  // --- LÓGICA DE SUBMIT (MODIFICADA CON isDebugMode) ---
   const handleSubmitAll = async (e) => {
     e.preventDefault();
+    
+    // Limpiar iframes de depuración viejos
+    const oldIframes = document.getElementsByName('hidden_iframe');
+    oldIframes.forEach(iframe => iframe.parentNode.removeChild(iframe));
+
     setIsSubmitting(true);
     setStatus('⏳ Iniciando envío...');
 
     let submittedCount = 0;
     let failedRows = [];
 
-    // Lee los Entry IDs desde el objeto 'config'
     const { entries } = config; 
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      if (!row.fecha) {
+      
+      if (!isValidDate(row.year, row.month, row.day) || !row.producto) {
         failedRows.push(i + 1);
         continue;
       }
@@ -261,8 +357,11 @@ function SheetTable({ config, onShowConfig }) {
       
       const rowFormData = new FormData();
       
-      // Añade campos usando los IDs de la config
-      rowFormData.append(entries.fecha, row.fecha);
+      // Lógica de Fecha (Formato YYYY-MM-DD)
+      const finalDateString = `${row.year}-${String(row.month).padStart(2, '0')}-${String(row.day).padStart(2, '0')}`;
+      rowFormData.append(entries.fecha, finalDateString);
+      
+      // Anexar el resto de los datos
       rowFormData.append(entries.servicio, row.servicio);
       rowFormData.append(entries.lider, row.lider);
       rowFormData.append(entries.representante, row.representante);
@@ -274,6 +373,16 @@ function SheetTable({ config, onShowConfig }) {
       rowFormData.append(entries.unificacion, row.unificacion);
       rowFormData.append(entries.provincia, row.provincia);
       rowFormData.append(entries.promo_tactica, row.promo_tactica);
+      
+      // --- LÓGICA DE DEPURACIÓN ---
+      if (isDebugMode) {
+        console.log(`--- DATOS FILA ${i + 1} A ENVIAR ---`);
+        for (const [key, value] of rowFormData.entries()) {
+          console.log(`${key}: ${value}`);
+        }
+        console.log(`Enviando a: ${config.formUrl}`);
+      }
+      // --- FIN LÓGICA DE DEPURACIÓN ---
       
       try {
         await submitRowToGoogle(rowFormData);
@@ -292,22 +401,22 @@ function SheetTable({ config, onShowConfig }) {
     setIsSubmitting(false);
   };
 
-  // --- JSX de la Tabla (MODIFICADO) ---
+  // --- JSX de la Tabla (con 3 campos de fecha) ---
   return (
     <div>
-      {/* Botón de Configuración añadido en la esquina */}
       <button onClick={onShowConfig} className="config-button">
         ⚙️
       </button>
 
-      <h2>Filler V2</h2>
+      <h2>Cargador de Datos a Google Form</h2>
       <form onSubmit={handleSubmitAll}>
         <div style={{ overflowX: 'auto', width: '100%' }}>
           <table className="sheet-table">
-            {/* ... Tu <thead> (sin cambios) ... */}
             <thead>
               <tr>
-                <th>FECHA</th>
+                <th>Año</th>
+                <th>Mes</th>
+                <th>Día</th>
                 {showHiddenColumns && (
                   <>
                     <th>SERVICIO</th>
@@ -331,18 +440,39 @@ function SheetTable({ config, onShowConfig }) {
               </tr>
             </thead>
             
-            {/* ... Tu <tbody> (sin cambios) ... */}
             <tbody>
               {rows.map((row, index) => (
                 <tr key={row.id}>
                   <td>
                     <input
-                      type="date"
-                      value={row.fecha}
-                      onChange={(e) => handleInputChange(index, 'fecha', e.target.value)}
+                      type="number"
+                      value={row.year}
+                      onChange={(e) => handleInputChange(index, 'year', e.target.value)}
+                      placeholder="Año"
                       required
                     />
                   </td>
+                  <td>
+                    <input
+                      type="number"
+                      value={row.month}
+                      onChange={(e) => handleInputChange(index, 'month', e.target.value)}
+                      placeholder="Mes"
+                      min="1" max="12"
+                      required
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      value={row.day}
+                      onChange={(e) => handleInputChange(index, 'day', e.target.value)}
+                      placeholder="Día"
+                      min="1" max="31"
+                      required
+                    />
+                  </td>
+                  
                   {showHiddenColumns && (
                     <>
                       <td>
@@ -366,6 +496,7 @@ function SheetTable({ config, onShowConfig }) {
                       type="text"
                       value={row.producto}
                       onChange={(e) => handleInputChange(index, 'producto', e.target.value)}
+                      placeholder="Ingresa un producto válido"
                       required
                     />
                   </td>
@@ -374,6 +505,7 @@ function SheetTable({ config, onShowConfig }) {
                       type="text"
                       value={row.dni}
                       onChange={(e) => handleInputChange(index, 'dni', e.target.value)}
+                      placeholder="DNI del cliente"
                       required
                     />
                   </td>
@@ -382,6 +514,7 @@ function SheetTable({ config, onShowConfig }) {
                       type="text"
                       value={row.gestion}
                       onChange={(e) => handleInputChange(index, 'gestion', e.target.value)}
+                      placeholder="N° de Gestión"
                       required
                     />
                   </td>
@@ -390,6 +523,7 @@ function SheetTable({ config, onShowConfig }) {
                       type="text"
                       value={row.caso_yoizen}
                       onChange={(e) => handleInputChange(index, 'caso_yoizen', e.target.value)}
+                      placeholder="N° de Caso"
                       required
                     />
                   </td>
@@ -432,7 +566,6 @@ function SheetTable({ config, onShowConfig }) {
           </table>
         </div>
         
-        {/* ... Tus table-actions (sin cambios) ... */}
         <div className="table-actions">
           <div>
             <button 
@@ -460,6 +593,6 @@ function SheetTable({ config, onShowConfig }) {
 }
 
 
-// --- 6. RENDER (Sin cambios) ---
+// --- 7. RENDER ---
 const root = createRoot(document.getElementById('root'));
 root.render(<App />);
