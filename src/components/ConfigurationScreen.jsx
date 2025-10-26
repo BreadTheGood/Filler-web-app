@@ -1,7 +1,7 @@
 // src/components/ConfigurationScreen.jsx
 import React, { useState } from 'react';
 
-export function ConfigurationScreen({ config, testConfig, defaultConfig, onSave, onCancel }) {
+export const ConfigurationScreen = ({ config, testConfig, defaultConfig, onSave, onCancel }) => {
   const [localConfig, setLocalConfig] = useState(config);
 
   const handleSave = (e) => {
@@ -22,11 +22,13 @@ export function ConfigurationScreen({ config, testConfig, defaultConfig, onSave,
       }
     }));
   };
-  
+
+  // Carga los valores de PRUEBA en el estado local del formulario
   const handleLoadTestValues = () => {
     setLocalConfig(testConfig);
   };
 
+  // Carga los valores PREDETERMINADOS (reales) en el estado local
   const handleLoadDefaultValues = () => {
     setLocalConfig(defaultConfig);
   };
@@ -54,7 +56,7 @@ export function ConfigurationScreen({ config, testConfig, defaultConfig, onSave,
             />
           </div>
         ))}
-        
+
         <div className="config-actions">
           <button type="submit">Guardar</button>
           <button type="button" onClick={onCancel}>Cancelar</button>
@@ -65,6 +67,7 @@ export function ConfigurationScreen({ config, testConfig, defaultConfig, onSave,
           >
             Cargar Valores de Prueba
           </button>
+          {/* --- ¡NUEVO BOTÓN! --- */}
           <button
             type="button"
             className="default-button"

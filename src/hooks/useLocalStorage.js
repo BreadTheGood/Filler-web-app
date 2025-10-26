@@ -1,7 +1,6 @@
 // src/hooks/useLocalStorage.js
 import { useState } from 'react';
 
-// (Este es el mismo hook que teníamos, ahora en su propio archivo)
 export function useLocalStorage(key, initialValue) {
   const [storedValue, setStoredValue] = useState(() => {
     try {

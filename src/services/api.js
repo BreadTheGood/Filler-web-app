@@ -2,26 +2,51 @@
 
 /**
  * Llama a una función del backend de Google Apps Script y devuelve una Promesa.
- * @param {string} functionName El nombre de la función en tu .gs
- * @param {any[]} args Los argumentos para la función
- * @returns {Promise<any>}
+ * Esto asume que estás en el entorno de GAS (después de compilar).
+ * En desarrollo (localhost), devolverá un mock.
  */
+
+// --- ¡NUEVA! API de Métricas ---
+export const getUserMetrics = (userEmail) => {
+  return callGoogleScript('calculateUserMetrics', userEmail);
+};
+
 const callGoogleScript = (functionName, ...args) => {
-  return new Promise((resolve, reject) => {
-    // 'google.script.run' es inyectado por el backend de Google Apps Script
-    google.script.run
-      .withSuccessHandler(resolve)
-      .withFailureHandler(reject)
-      [functionName](...args);
-  });
+  // Comprobamos si `google.script.run` existe
+  if (window.google && window.google.script && window.google.script.run) {
+    return new Promise((resolve, reject) => {
+      window.google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(reject)
+        [functionName](...args);
+    });
+  } else {
+    // --- MODO DE DESARROLLO (localhost) ---
+    // No estamos en GAS, así que devolvemos datos falsos (mock)
+    console.warn(`Modo de desarrollo: Simulando llamada a ${functionName}`);
+    if (functionName === 'getUserInfo') {
+      return Promise.resolve({ email: 'dev@localhost.com', name: 'Dev User' });
+    }
+    if (functionName === 'loadData') {
+      return Promise.resolve([]); // Devuelve un array vacío
+    }
+    if (functionName === 'saveData') {
+      return Promise.resolve({ status: 'ok_mock', rowsSaved: args[0].length });
+    }
+    return Promise.reject(new Error('google.script.run no está disponible.'));
+  }
 };
 
-// --- API de Persistencia ---
-
-export const loadData = () => {
-  return callGoogleScript('loadData');
+// --- API de Autenticación ---
+export const getUserInfo = () => {
+  return callGoogleScript('getUserInfo');
 };
 
-export const saveData = (rows) => {
-  return callGoogleScript('saveData', rows);
+// --- API de Base de Datos ---
+export const loadData = (userEmail) => { // <-- ¡PARÁMETRO NUEVO!
+  return callGoogleScript('loadData', userEmail); // <-- Pasa el email
+};
+
+export const saveData = (rows, userEmail) => {
+  return callGoogleScript('saveData', rows, userEmail);
 };

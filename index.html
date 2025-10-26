@@ -210,6 +210,25 @@
   height: 1.2em;
   width: 1.2em;
 }
+/* Opcional: Estilos para Loading/Error si no los tenías */
+.loading-screen, .error-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: calc(100vh - 70px); /* Ajustar altura para compensar padding */
+  font-size: 1.5em;
+  color: #555;
+  text-align: center;
+}
+.error-screen {
+  color: #dc3545;
+}
+.error-screen p {
+  font-size: 0.7em;
+  color: #333;
+  max-width: 80%;
+}
 </style>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
