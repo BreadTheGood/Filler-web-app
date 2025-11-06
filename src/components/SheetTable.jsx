@@ -6,10 +6,10 @@ import { loadData, saveData } from '../services/api'; // Make sure this path is 
 const representanteOptions = [
   'ARIAS YOHANA YAMILA', 'ESPINOZA BARRERA JENNIFER ROMINA', 'HEREDIA AZUL AYLEN',
   'MAIDANA MELINA MADELEIN', 'CALIVA FEDERICO JAVIER', 'ABBA CASTELLO JOSEFINA',
-  'ROJAS MICAELA ALEJANDRA', 'YOSSEN AGUSTINA', 'PABON FERMIN YESLANI DIOSLISETH',
+  'MICAELA ROJAS', 'YOSSEN AGUSTINA', 'PABON FERMIN YESLANI DIOSLISETH',
   'SALGAN ROMINA ALEJANDRA', 'ROLDAN LUDMILA ANAHI', 'OJEDA PALAT BRAIAN RAFAEL CARLOS',
   'SERRANO TOMAS IGNACIO', 'GOMEZ LEYLA CAROLINA', 'MANSILLA NOELIA BELEN',
-  'TARANTINO MAYRA VANESA', 'LEDESMA PEDRO ANDRES JESUS', 'NAVARRO YANINA DE LOS MILAGROS',
+  'TARANTINO MAYRA', 'LEDESMA PEDRO ANDRES JESUS', 'NAVARRO YANINA DE LOS MILAGROS',
   'ASTRADA NADIA SABRINA', 'SALDAÑO VIRGINIA ANABEL', 'MARTINEZ PEINADO SAMUEL SALVADOR'
 ];
 const productoOptions = [
@@ -18,7 +18,7 @@ const productoOptions = [
   'FLOW FULL CON DECO', 'FLOW FULL SIN DECO', 'FLOW (+) CON DECO',
   'FLOW (+) SIN DECO', 'COMBO CLASICO HD', 'COMBO FULL CON DECO',
   'COMBO FULL SIN DECO', 'COMBO FLOW (+)  CON DECO', 'COMBO FLOW (+)  SIN DECO',
-  'INTERNET', 'CAMARA'
+  'INTERNET', 'CAMARA', 'FWA', 'VENTA CIBER MONDAY'
 ];
 const unificacionOptions = [
   'No Corresponde (no tiene serv. Para unificar)', 'Si Corresponde - Dio Error',
@@ -45,13 +45,28 @@ export const SheetTable = ({ config, user, onShowConfig }) => {
   // Ref to store the representative name (prioritizing historical over current login)
   const historicalRepName = useRef(user?.name || user?.email || representanteOptions[0]); // Fallback to first option if user info missing
 
-  // --- Row Template Function ---
-  // Dynamically creates a template using the potentially updated historicalRepName
+  // --- Row Template Function (today is used as fallback) ---
   const today = new Date();
+  // NOTE: createNewRowTemplate is defined later so it can reference component state like `selectedMonth`.
+
+  // --- Component State ---
+  const [rows, setRows] = useState([]); // Start empty, will be populated by useEffect
+  const [status, setStatus] = useState('Cargando datos guardados...');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showHiddenColumns, setShowHiddenColumns] = useState(false);
+  const [initialRowCount, setInitialRowCount] = useState(0); // Tracks initially loaded rows
+
+  // --- Month selector state ---
+  const currentMonthDefault = String(new Date().getMonth() + 1).padStart(2, '0');
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthDefault);
+  const monthNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const [rowsBackup, setRowsBackup] = useState(null); // temporary local backup when wiping UI
+
+  // Row template now uses selectedMonth as default month when creating new rows
   const createNewRowTemplate = () => ({
     id: Date.now(), // Unique ID for React key
     year: today.getFullYear(),
-    month: String(today.getMonth() + 1).padStart(2, '0'),
+    month: selectedMonth || String(today.getMonth() + 1).padStart(2, '0'),
     day: String(today.getDate()).padStart(2, '0'),
     servicio: 'HOGAR',
     lider: 'AYLEN GONZALEZ',
@@ -65,13 +80,6 @@ export const SheetTable = ({ config, user, onShowConfig }) => {
     provincia: provinciaOptions[0], // Default to 'OTRA'
     promo_tactica: promoOptions[0], // Default to 'NO'
   });
-
-  // --- Component State ---
-  const [rows, setRows] = useState([]); // Start empty, will be populated by useEffect
-  const [status, setStatus] = useState('Cargando datos guardados...');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showHiddenColumns, setShowHiddenColumns] = useState(false);
-  const [initialRowCount, setInitialRowCount] = useState(0); // Tracks initially loaded rows
 
   // --- Load User's Data Effect ---
   useEffect(() => {
@@ -175,6 +183,51 @@ export const SheetTable = ({ config, user, onShowConfig }) => {
         setRows([createNewRowTemplate()]);
     } else {
         setRows(newRows);
+    }
+  };
+
+  // --- Handle month changes: wipe UI and re-fetch or locally filter ---
+  const handleMonthChange = (e) => {
+    const newMonth = e.target.value;
+    // Update UI selection immediately
+    setSelectedMonth(newMonth);
+
+    // Backup current rows before wiping the UI so we can restore if fetch fails
+    setRowsBackup(rows);
+
+    // Wipe visible rows immediately for a seamless UX
+    setRows([]);
+    setStatus(`⏳ Cargando filas para ${newMonth} - ${monthNames[parseInt(newMonth, 10) - 1]}...`);
+
+    // If we have a user/email, request fresh data from DB; otherwise fallback to local filter
+    if (user && user.email) {
+      loadData(user.email)
+        .then(freshRows => {
+          const rowsWithIds = (freshRows || []).map(r => ({ ...r, id: r.id || Math.random() }));
+          setRows(rowsWithIds);
+          setInitialRowCount(rowsWithIds.length);
+          setStatus(`Datos cargados (${rowsWithIds.length} filas).`);
+          setRowsBackup(null);
+        })
+        .catch(err => {
+          console.error('Error reloading data:', err);
+          // Restore previous rows from backup to avoid data loss in UI
+          if (rowsBackup && rowsBackup.length > 0) {
+            setRows(rowsBackup);
+            setStatus('❌ Error al recargar datos. Se restauró la vista anterior.');
+          } else {
+            setRows([createNewRowTemplate()]);
+            setStatus('❌ Error al recargar datos. Vista inicial restaurada.');
+          }
+          setRowsBackup(null);
+        });
+    } else {
+      // No backend available: perform filtering locally from backup or existing rows
+      const source = rowsBackup || rows || [];
+      const filtered = source.filter(r => String(r.month).padStart(2, '0') === newMonth);
+      setRows(filtered.length > 0 ? filtered : [createNewRowTemplate()]);
+      setStatus(`Mostrando ${filtered.length} filas (filtradas localmente).`);
+      setRowsBackup(null);
     }
   };
 
@@ -333,20 +386,37 @@ export const SheetTable = ({ config, user, onShowConfig }) => {
   };
 
   // --- JSX Rendering ---
+  // Only show rows that match the selected month
+  const visibleRows = rows.filter(row => {
+    const rowMonth = row && (row.month ?? '');
+    const rowMonthPadded = String(rowMonth).padStart(2, '0');
+    return rowMonthPadded === selectedMonth;
+  });
+
   return (
     <div>
       <button onClick={onShowConfig} className="config-button">
         ⚙️
       </button>
-
       <div className="user-info">
         Logueado como: {user.name} ({user.email})
       </div>
-
-      <h2>Cargador de Datos a Google Form</h2>
-      <h3>ANTES DE ENVIAR CUALQUIER VENTA, ES NECESARIO QUE NO HAYAS DEJADO NINGUNA OPCION SELECCIONADA EN EL BDU</h3>
+      <h2>Filler App - Google Forms</h2>
+      <h3><b>IMPORTANTE:</b> ANTES DE ENVIAR CUALQUIER VENTA, ES NECESARIO QUE NO HAYAS DEJADO NINGUNA OPCION SELECCIONADA EN EL BDU</h3>
       <h3>SI HAY ALGUNA OPCION SELECCIONADA, POR FAVOR DESMARCARLA ANTES DE CONTINUAR.</h3>
       <form onSubmit={handleSubmitAll}>
+
+      
+        {/* Month picker: choose which month's rows to display */}
+        <div className="month-picker-container">
+          <label htmlFor="month-picker" className="month-picker-label"></label>
+          <select id="month-picker" className="month-picker-select" value={selectedMonth} onChange={(e) => handleMonthChange(e)} aria-label="Seleccionar mes">
+            {monthNames.map((name, idx) => {
+              const m = String(idx + 1).padStart(2, '0');
+              return (<option key={m} value={m}>{m} - {name}</option>);
+            })}
+          </select>
+        </div>
         <div style={{ overflowX: 'auto', width: '100%' }}>
           <table className="sheet-table">
             <thead>
@@ -379,21 +449,20 @@ export const SheetTable = ({ config, user, onShowConfig }) => {
             </thead>
 
             <tbody>
-              {rows.length === 0 ? (
+              {visibleRows.length === 0 ? (
                  // Adjust colspan based on visible columns
-                <tr key="no-data-row"><td colSpan={showHiddenColumns ? 15 : 9}>Cargando o no hay datos. Añade una fila para comenzar.</td></tr>
+                <tr key="no-data-row"><td colSpan={showHiddenColumns ? 15 : 9}>No hay filas para el mes seleccionado ({selectedMonth} - {monthNames[parseInt(selectedMonth, 10) - 1]}). Añade una fila para este mes para comenzar.</td></tr>
               ) : (
-                rows.map((row, index) => (
+                visibleRows.map((row) => {
+                  const originalIndex = rows.findIndex(r => r.id === row.id);
+                  return (
                   <tr key={row.id}>
                     {/* --- Date Inputs (Year is conditional) --- */}
                     {showHiddenColumns && (
-                       <td>
-                        <input type="number" value={row.year || ''} onChange={(e) => handleInputChange(index, 'year', e.target.value)} placeholder="Año" required />
-                      </td>
+                      <td>{row.year || ''}</td> // Static Year
                     )}
-                    <td><input type="number" value={row.month || ''} onChange={(e) => handleInputChange(index, 'month', e.target.value)} placeholder="Mes" min="1" max="12" required /></td>
-                    <td><input type="number" value={row.day || ''} onChange={(e) => handleInputChange(index, 'day', e.target.value)} placeholder="Día" min="1" max="31" required /></td>
-
+                    <td>{String(row.month || '')}</td> {/* Static Month (padded) */}
+                    <td>{String(row.day || '')}</td>   {/* Static Day (padded) */}
                     {/* --- Hidden Fixed Columns --- */}
                     {showHiddenColumns && (
                       <>
@@ -404,7 +473,7 @@ export const SheetTable = ({ config, user, onShowConfig }) => {
 
                     {/* --- REPRESENTANTE (Dropdown) --- */}
                     <td>
-                      <select value={row.representante || ''} onChange={(e) => handleInputChange(index, 'representante', e.target.value)} required>
+                      <select value={row.representante || ''} onChange={(e) => handleInputChange(originalIndex, 'representante', e.target.value)} required>
                         {/* Ensure the current value is an option, even if not in the default list */}
                         {!representanteOptions.includes(row.representante || '') && row.representante &&
                            <option value={row.representante} >{row.representante}</option>
@@ -415,7 +484,7 @@ export const SheetTable = ({ config, user, onShowConfig }) => {
 
                     {/* --- PRODUCTO (Dropdown with Placeholder) --- */}
                     <td>
-                      <select value={row.producto || ''} onChange={(e) => handleInputChange(index, 'producto', e.target.value)} required>
+                      <select value={row.producto || ''} onChange={(e) => handleInputChange(originalIndex, 'producto', e.target.value)} required>
                          {/* Placeholder Option */}
                          {productoOptions[0] === '' && <option value="" disabled>Seleccionar producto...</option>}
                         {/* Map other options, skipping the empty one if it was used as placeholder */}
@@ -424,13 +493,13 @@ export const SheetTable = ({ config, user, onShowConfig }) => {
                     </td>
 
                     {/* --- DNI, GESTION, CASO (Text Inputs) --- */}
-                    <td><input type="text" value={row.dni || ''} onChange={(e) => handleInputChange(index, 'dni', e.target.value)} placeholder="DNI del cliente" required /></td>
-                    <td><input type="text" value={row.gestion || ''} onChange={(e) => handleInputChange(index, 'gestion', e.target.value)} placeholder="N° de Gestión" required /></td>
-                    <td><input type="text" value={row.caso_yoizen || ''} onChange={(e) => handleInputChange(index, 'caso_yoizen', e.target.value)} placeholder="N° de Caso" required /></td>
+                    <td><input type="text" value={row.dni || ''} onChange={(e) => handleInputChange(originalIndex, 'dni', e.target.value)} placeholder="DNI del cliente" required /></td>
+                    <td><input type="text" value={row.gestion || ''} onChange={(e) => handleInputChange(originalIndex, 'gestion', e.target.value)} placeholder="N° de Gestión" required /></td>
+                    <td><input type="text" value={row.caso_yoizen || ''} onChange={(e) => handleInputChange(originalIndex, 'caso_yoizen', e.target.value)} placeholder="N° de Caso" required /></td>
 
                     {/* --- FLOW SIN DECO (Dropdown) --- */}
                     <td>
-                      <select value={row.flow_sin_deco || flowSinDecoOptions[0]} onChange={(e) => handleInputChange(index, 'flow_sin_deco', e.target.value)}>
+                      <select value={row.flow_sin_deco || flowSinDecoOptions[0]} onChange={(e) => handleInputChange(originalIndex, 'flow_sin_deco', e.target.value)}>
                         {flowSinDecoOptions.map(option => (<option key={option} value={option}>{option}</option>))}
                       </select>
                     </td>
@@ -440,19 +509,19 @@ export const SheetTable = ({ config, user, onShowConfig }) => {
                       <>
                         {/* --- UNIFICACION (Dropdown) --- */}
                         <td>
-                          <select value={row.unificacion || unificacionOptions[0]} onChange={(e) => handleInputChange(index, 'unificacion', e.target.value)} required>
+                          <select value={row.unificacion || unificacionOptions[0]} onChange={(e) => handleInputChange(originalIndex, 'unificacion', e.target.value)} required>
                             {unificacionOptions.map(option => (<option key={option} value={option}>{option}</option>))}
                           </select>
                         </td>
                         {/* --- PROVINCIA (Dropdown) --- */}
                         <td>
-                          <select value={row.provincia || provinciaOptions[0]} onChange={(e) => handleInputChange(index, 'provincia', e.target.value)} required>
+                          <select value={row.provincia || provinciaOptions[0]} onChange={(e) => handleInputChange(originalIndex, 'provincia', e.target.value)} required>
                             {provinciaOptions.map(option => (<option key={option} value={option}>{option}</option>))}
                           </select>
                         </td>
                          {/* --- PROMO TACTICA (Dropdown) --- */}
                         <td>
-                           <select value={row.promo_tactica || promoOptions[0]} onChange={(e) => handleInputChange(index, 'promo_tactica', e.target.value)} required>
+                           <select value={row.promo_tactica || promoOptions[0]} onChange={(e) => handleInputChange(originalIndex, 'promo_tactica', e.target.value)} required>
                             {promoOptions.map(option => (<option key={option} value={option}>{option}</option>))}
                           </select>
                         </td>
@@ -460,12 +529,13 @@ export const SheetTable = ({ config, user, onShowConfig }) => {
                     )}
                     {/* --- Remove Button --- */}
                     <td>
-                      <button type="button" onClick={() => removeRow(index)}>
+                      <button type="button" onClick={() => removeRow(originalIndex)}>
                         &times;
                       </button>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>

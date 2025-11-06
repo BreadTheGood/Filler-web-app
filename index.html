@@ -20,7 +20,8 @@
    .sheet-table td {
      border: 1px solid #ddd;
      padding: 0;
-     text-align: left;
+     text-align: center; /* Center horizontally */
+     vertical-align: middle; /* Center vertically */
    }
    .sheet-table th {
      background-color: #f8f9fa;
@@ -120,7 +121,7 @@
 /* Botón de Configuración (flota en la esquina) */
 .config-button {
   position: fixed;
-  top: 15px;
+  top: 80px;
   right: 15px;
   font-size: 1.5em;
   padding: 0.25em 0.5em;
@@ -229,9 +230,54 @@
   color: #333;
   max-width: 80%;
 }
+/* Stylish month picker used in the sheet table */
+.month-picker-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 10px;
+  background: #191919;
+  border: 1px solid #e1e4e8;
+  padding: 6px 10px;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(20,25,35,0.04);
+}
+
+/*Texto del picker del filtro de mes*/
+
+.month-picker-label {
+  font-weight: 600;
+  color: white;
+  font-size: 0.95rem;
+}
+
+.month-picker-select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  border: none;
+  background-color: #2e3133;
+  padding: 8px 36px 8px 12px;
+  border-radius: 6px;
+  font-weight: 1000;
+  font-family: Verdana, Geneva, Tahoma, sans-serif;
+  color: white;
+  min-width: 160px;
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px;
+  cursor: pointer;
+  transition: box-shadow 120ms ease, transform 120ms ease;
+}
+.month-picker-select:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0,123,255,0.12);
+  transform: translateY(-1px);
+}
+
 </style>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/icon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>fillerapp</title>
   </head>
